@@ -9,6 +9,7 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class Result {
     private String decision;
+    private Integer loadingPercentage;
 
     public String getDecision() {
         return decision;
