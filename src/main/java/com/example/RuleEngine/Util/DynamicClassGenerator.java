@@ -9,6 +9,7 @@ import net.bytebuddy.implementation.FixedValue;
 
 import java.lang.reflect.Field;
 import java.util.Map;
+import java.util.Set;
 
 public class DynamicClassGenerator {
 
@@ -183,6 +184,32 @@ public class DynamicClassGenerator {
         }
         // Return the original class and object if no modification was needed
         return new Object[]{personClass, person};
+    }
+
+    public static Class<?> createDynamicPersonClassUsingSetOfKeys(String className, Set<String> attributes) throws Exception {
+        // Create a dynamic class using ByteBuddy
+        DynamicType.Builder<?> builder = new ByteBuddy()
+                .subclass(Object.class)
+                .name(className);
+
+        // Define fields and their accessors
+        for (String attribute : attributes) {
+            String fieldName = attribute.replace(".", "_");
+
+            builder = builder
+                    .defineField(fieldName, String.class, net.bytebuddy.description.modifier.Visibility.PUBLIC)
+                    .defineMethod("get" + capitalize(fieldName), String.class, net.bytebuddy.description.modifier.Visibility.PUBLIC)
+                    .intercept(net.bytebuddy.implementation.FieldAccessor.ofField(fieldName))
+                    .defineMethod("set" + capitalize(fieldName), void.class, net.bytebuddy.description.modifier.Visibility.PUBLIC)
+                    .withParameter(String.class)
+                    .intercept(net.bytebuddy.implementation.FieldAccessor.ofField(fieldName));
+        }
+
+        // Build and load the class
+        Class<?> dynamicClass = builder.make()
+                .load(DynamicClassGenerator.class.getClassLoader())
+                .getLoaded();
+        return dynamicClass;
     }
 
 }

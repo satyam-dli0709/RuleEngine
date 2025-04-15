@@ -37,7 +37,7 @@ public class NumberController {
    }
 
     @PostMapping("/writeExcel")
-    public String writeExcel(@RequestBody List<Rule> data) throws IOException {
+    public String writeExcel(@RequestBody List<Rule> data) throws Exception {
         numberService.writeExcel(data);
         return "Data written to Excel file successfully.";
     }

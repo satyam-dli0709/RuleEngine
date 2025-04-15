@@ -18,6 +18,7 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Service;
 
+import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -28,13 +29,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
 
-import static com.example.RuleEngine.Config.RuleConfiguration.personClazz;
+import static com.example.RuleEngine.Config.RuleConfiguration.dynamicPersonClass;
+//import static com.example.RuleEngine.Config.RuleConfiguration.personClazz;
 
 @Service
 public class NumberService {
 
-    @Autowired
-    private StatefulSession statefulSession;
+//    @Autowired
 
 //    public void checkEvenOdd(int number) {
 //        statefulSessionEvenOdd.insert(number);
@@ -60,15 +61,15 @@ public class NumberService {
             PairConditionDecission pairConditionDecission = new PairConditionDecission(condition, decision);
             for (Cell cell : row) {
                 rowData[cell.getColumnIndex()] = cell.toString();
-                if (cell.toString().contains("Condtion:")) {
+                if (cell.toString().contains("Condition:")) {
                     String[] conditionData = cell.toString().split(":");
                     String[] conditionKeyValue = conditionData[1].split("=");
-                    condition.put(conditionKeyValue[0], conditionKeyValue[1]);
+                    condition.put(conditionKeyValue[0].replace("." , "_"), conditionKeyValue[1]);
                 }
                 if (cell.toString().contains("Result:")) {
                     String[] decisionData = cell.toString().split(":");
                     String[] decisionKeyValue = decisionData[1].split("=");
-                    decision.put(decisionKeyValue[0], decisionKeyValue[1]);
+                    decision.put(decisionKeyValue[0].replace("." , "_"), decisionKeyValue[1]);
                 }
             }
             data.add(pairConditionDecission);
@@ -80,45 +81,62 @@ public class NumberService {
         return data;
     }
 
-    public void writeExcel(List<Rule> data) throws IOException {
-        Workbook workbook = new XSSFWorkbook();
-        Sheet sheet = workbook.createSheet("Sheet1");
+    public void writeExcel(List<Rule> data) throws Exception {
+        String filePath = "D:\\RuleEngine\\RulesXlsxSheets\\output.xlsx";
+        File file = new File(filePath);
+        Workbook workbook;
+        Sheet sheet;
 
-        for (int i = 0; i < data.size(); i++) {
-            Row row = sheet.createRow(i);
-            Rule rule = data.get(i);
-            Map<String,Object> person = rule.getCondition();
-//            Result result = rule.getResult();
-            int j = 0;
-            for(String key : person.keySet()){
-                Cell cell = row.createCell(j++);
-                cell.setCellValue("Condtion:" + key + "=" + person.get(key));
+        // Check if the file exists
+        if (file.exists()) {
+            // Read the existing workbook
+            try (FileInputStream fileInputStream = new FileInputStream(file)) {
+                workbook = new XSSFWorkbook(fileInputStream);
             }
-            Map<String,Object> result = rule.getResult();
-            for(String key : result.keySet()){
-                Cell cell = row.createCell(j++);
-                cell.setCellValue("Result:" + key + "=" + result.get(key));
-            }
-
-
-//            row.createCell(0).setCellValue("Condtion :"+"gender="+person.getGender());
-//            row.createCell(1).setCellValue("Condtion :"+"age="+person.getAge());
-//            row.createCell(2).setCellValue("Condtion :"+"type="+person.getType());
-//            row.createCell(3).setCellValue("Condtion :"+"duration="+person.getDuration());
-//            row.createCell(4).setCellValue("Condtion :"+"hba1c="+person.getHba1c());
-//            row.createCell(5).setCellValue("Condtion :"+"fbs="+person.getFbs());
-//            row.createCell(6).setCellValue("result:"+result.getDecision());
-
+            sheet = workbook.getSheetAt(0); // Get the first sheet
+        } else {
+            // Create a new workbook and sheet
+            workbook = new XSSFWorkbook();
+            sheet = workbook.createSheet("Sheet1");
         }
 
-        try (FileOutputStream fileOutputStream = new FileOutputStream("D:\\RuleEngine\\RulesXlsxSheets\\output.xlsx")) {
+        // Get the starting row index
+        int rowIndex = sheet.getLastRowNum() + 1;
+        List<NumberService.PairConditionDecission> xlData = new ArrayList<>();
+
+
+        // Append new data
+        for (Rule rule : data) {
+            Row row = sheet.createRow(rowIndex++);
+            Map<String, Object> person = rule.getCondition();
+            int cellIndex = 0;
+
+            // Write condition data
+            for (String key : person.keySet()) {
+                Cell cell = row.createCell(cellIndex++);
+                cell.setCellValue("Condition:" + key + "=" + person.get(key));
+            }
+
+            // Write result data
+            Map<String, Object> result = rule.getResult();
+            for (String key : result.keySet()) {
+                Cell cell = row.createCell(cellIndex++);
+                cell.setCellValue("Result:" + key + "=" + result.get(key));
+            }
+            xlData.add(new PairConditionDecission(rule.getCondition(), rule.getResult()));
+        }
+
+        // Write the updated workbook back to the file
+        try (FileOutputStream fileOutputStream = new FileOutputStream(filePath)) {
             workbook.write(fileOutputStream);
         }
         workbook.close();
+        RuleConfiguration.initializeKnowledge();
+
     }
 
     public Map<String, Object> checkRules(Map<String, Object> rules) throws Exception {
-        Class<?> personClass = personClazz;
+        Class<?> personClass = dynamicPersonClass;
         Object person = personClass.getDeclaredConstructor().newInstance();
 
         for (Map.Entry<String, Object> entry : rules.entrySet()) {
@@ -137,15 +155,15 @@ public class NumberService {
         List<Map<String, Object>> results = new ArrayList<>();
 
         // Define a callback to handle results
-        Consumer<Map<String, Object>> callback = result -> {
-            System.out.println("Callback invoked with result: " + result);
-            results.add(result); // Add the result to the shared list
-        };
-
+//        Consumer<Map<String, Object>> callback = result -> {
+//            System.out.println("Callback invoked with result: " + result);
+//            results.add(result); // Add the result to the shared list
+//        };
+        StatefulSession statefulSession = RuleConfiguration.statefulSession();
         // Insert the person object and callback into the session
         statefulSession.insert(person);
 //        statefulSession.insert("callback" , callback);
-        statefulSession.set("callback", callback);
+//        statefulSession.set("callback", callback);
         // Fire the rules
         statefulSession.fire();
 
